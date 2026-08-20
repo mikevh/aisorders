@@ -85,6 +85,16 @@ resource group, `random_string` suffix, and the shared tag map.
 **Done when:** `terraform apply` creates the resource group with correct tags; `terraform
 destroy` removes it cleanly.
 
+**✅ Verified 2026-08-20.** `rg-aisdemo-wus2` created in West US 2 with all four tags,
+destroyed cleanly (`az group exists` → `False`), and re-applied to leave a base for W05.
+
+All resource names live in a single `local.names` map rather than being built ad hoc in each
+file, and fixed entity names in `local.entities` — the latter is the half of the §12.1
+duplication that Terraform owns, carrying a pointer to `local/config.json`.
+
+Two `.gitignore` corrections fell out: `.terraform.lock.hcl` is now **committed** so provider
+versions are reproducible, and extensionless `tfplan` is ignored.
+
 ### W05 · Monitoring resources · `S`
 **Depends on:** W04
 **Do:** Log Analytics workspace (30-day retention) and workspace-based Application Insights.

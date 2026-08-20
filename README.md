@@ -24,7 +24,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W01** — environment and tooling verified
 - [x] **W02** — runtime, region, and provider versions pinned
 - [x] **W03** — repository scaffold
-- [ ] W04–W15 — Terraform foundation through a deployed walking skeleton
+- [x] **W04** — Terraform root module: resource group, naming, tags
+- [ ] W05–W15 — remaining Terraform foundation through a deployed walking skeleton
 - [ ] W16–W21 — API Management and the gateway path
 - [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator
