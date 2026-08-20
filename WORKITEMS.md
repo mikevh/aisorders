@@ -135,6 +135,12 @@ smuggled in here.
 `lock_duration = PT1M`, dead-lettering on expiration. Topic deferred to W23.
 **Done when:** The queue exists with the specified settings and its DLQ is addressable.
 
+**✅ Verified 2026-08-20.** `sb-aisdemo-mrx0e` (Standard, TLS 1.2, Active) and queue `orders`
+reporting `maxDeliveryCount: 5`, `lockDuration: PT1M`, dead-lettering on expiration enabled.
+
+Standard tier carries the fixed monthly base charge that dominates this demo's cost — the
+reason §16 assumes teardown between demos.
+
 ### W08 · Function App · `M`
 **Depends on:** W05, W06, W07
 **Do:** Function App per the W02 hosting decision, Linux, .NET isolated, system-assigned
