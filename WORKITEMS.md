@@ -56,6 +56,15 @@ supports; confirm whether Flex Consumption is available in West US 2; identify t
 **Done when:** A short decision note is appended to SPEC.md §17 recording the .NET target,
 the Function App hosting choice, and the provider version to pin.
 
+**✅ Verified 2026-08-20.** Full note in SPEC.md §17.1. Summary: target `dotnet-isolated` 10
+(not .NET 8 — its Functions support ends 2026-11-10); Flex Consumption is available in
+West US 2 so the `Y1` fallback is withdrawn; pin `azurerm ~> 5.2`. Risks 1–3 closed.
+
+Two follow-ons landed in §4: Flex Consumption mandates both an `azurerm_service_plan`
+(`FC1`, Linux) and a blob container for deployment packages. And in provider v5,
+`azurerm_storage_table` / `azurerm_storage_container` take `storage_account_id`, not
+`storage_account_name` — relevant to **W06**.
+
 ---
 
 ## Phase 1 — Walking skeleton

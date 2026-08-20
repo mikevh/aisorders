@@ -140,7 +140,9 @@ Names use a `random_string` suffix (5 lowercase alphanumeric) for globally-uniqu
 | Storage account | `staisdemo<suffix>` | `Standard_LRS` | Backs the Function App runtime **and** the two demo tables |
 | Storage table | `Orders` | — | Order state |
 | Storage table | `AuditLog` | — | Audit trail written by `AuditHandler` |
-| Function App | `func-aisdemo-<suffix>` | Flex Consumption (`FC1`) | Linux, .NET isolated, system-assigned identity |
+| Storage container | `deployments` | — | Flex Consumption deployment packages; required by `storage_container_endpoint` |
+| Service plan | `asp-aisdemo-<suffix>` | `FC1` | Linux; required by the Function App's `service_plan_id` |
+| Function App | `func-aisdemo-<suffix>` | Flex Consumption | Linux, `dotnet-isolated` 10, system-assigned identity |
 | Log Analytics workspace | `log-aisdemo-<suffix>` | `PerGB2018` | 30-day retention |
 | Application Insights | `appi-aisdemo-<suffix>` | Workspace-based | Wired to APIM **and** the Function App |
 | Static Web App | `swa-aisdemo-<suffix>` | `Free` | Hosts the demo UI |
@@ -582,14 +584,49 @@ Items to resolve during implementation. Each has a stated fallback so none block
 
 | # | Risk | Fallback |
 |---|---|---|
-| 1 | **.NET version.** Confirm which .NET isolated versions the Functions host supports at build time and target the newest supported LTS. | Target .NET 8 (LTS), which is definitively supported |
-| 2 | **Flex Consumption in West US 2.** Region availability must be verified. | Fall back to Linux Consumption (`Y1`) via `azurerm_service_plan` + `azurerm_linux_function_app` |
-| 3 | **`azurerm` provider surface.** Flex Consumption and APIM Consumption resources have moved across provider versions. | Pin the provider version once verified; adjust resource types to match |
+| 1 | ~~**.NET version.**~~ **Resolved W02** — target `dotnet-isolated` **10**. | — |
+| 2 | ~~**Flex Consumption in West US 2.**~~ **Resolved W02** — available. | — |
+| 3 | ~~**`azurerm` provider surface.**~~ **Resolved W02** — pin `~> 5.2`. | — |
 | 4 | **RBAC propagation delay.** Role assignments can take several minutes; the first function invocation after `apply` may 403. | Document the wait; add a `time_sleep` between role assignment and function deploy |
 | 5 | **Emulator config drift** (§12.1). | Cross-referencing comments now; a generator script later |
 | 6 | **APIM Consumption cold start.** First call after idle may take seconds. | Note it in the runbook; warm the gateway before presenting |
 | 7 | **APIM content-validation policy.** Tier support needs verification before relying on it. | Validate in `SubmitOrder` instead — already required for the malformed-message scenario |
 | 8 | **SWA deployment token.** Terraform outputs it; the deploy script must consume it without writing it to disk. | Pass via environment variable in the script |
+
+### 17.1 W02 decision note — verified 2026-08-20
+
+**Runtime: `dotnet-isolated` version `10`.** Confirmed available on Flex Consumption in
+West US 2 via `az functionapp list-flexconsumption-runtimes`. Support runs to 2028-11-10.
+
+> This reverses the fallback originally written into risk 1. .NET 8 is still the platform
+> *default*, but its Functions support ends **2026-11-10** — under three months from this
+> spike — so choosing it as the "safe" option would have shipped a demo that goes
+> unsupported almost immediately. .NET 9 shares the same 2026-11-10 date. Version 10 is the
+> only choice with real runway, and SDK 10.0.400 is already installed locally (W01).
+
+**Hosting: Flex Consumption, no fallback needed.** `westus2` appears in
+`az functionapp list-flexconsumption-locations`. The Linux Consumption (`Y1`) fallback in
+risk 2 is withdrawn.
+
+**Provider: pin `azurerm ~> 5.2`** (5.2.0 current). All 20 resource types and 3 data sources
+the MVP needs are present in the schema, including
+`azurerm_function_app_flex_consumption`, `azurerm_servicebus_subscription_rule`,
+`azurerm_static_web_app`, and the `azurerm_function_app_host_keys` data source.
+`subscription_id` is optional on the provider block, but will be set explicitly from a
+variable rather than relying on ambient environment state.
+
+**Two resources were missing from §4 and have been added.**
+`azurerm_function_app_flex_consumption` requires `service_plan_id`, so an
+`azurerm_service_plan` with `sku_name = "FC1"` and `os_type = "Linux"` is mandatory — Flex
+Consumption is not planless. It also requires `storage_container_endpoint`,
+`storage_container_type`, and `storage_authentication_type`, so a dedicated blob container
+for deployment packages is mandatory too. `storage_authentication_type` accepts
+`SystemAssignedIdentity`, which keeps the §9 no-secrets position intact for that hop.
+
+**Provider v5 breaking change to watch in W06.** `azurerm_storage_table` and
+`azurerm_storage_container` now require **`storage_account_id`**, not the
+`storage_account_name` used throughout most published examples. Copying a v3/v4-era snippet
+will fail here.
 
 ---
 
