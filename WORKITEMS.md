@@ -25,6 +25,29 @@ assignment can be created and deleted successfully.
 **Note:** The role-assignment check is the one that matters — Contributor alone silently
 passes every other check and then fails at W09.
 
+**✅ Verified 2026-08-20.** Subscription `MSDN via Attunix` (`7e62b73d-a99f-4410-891c-b19daae8fc92`),
+tenant `3737fc9d-8896-426a-a2be-8a0c825a8158`, signed in as `michaelv@attunix.com` — a guest
+(`#EXT#`) principal holding **Owner** at subscription scope. Owner subsumes User Access
+Administrator, so W09 is clear and no scratch write test was required.
+
+All seven resource providers already registered: `ApiManagement`, `ServiceBus`, `Web`,
+`Storage`, `OperationalInsights`, `Insights`, `ManagedIdentity`. West US 2 available.
+
+| Tool | Version |
+|---|---|
+| Azure CLI | 2.88.0 |
+| Terraform | 1.15.8 *(installed during W01)* |
+| .NET SDK | 8.0.424, 9.0.317, 10.0.400 |
+| Functions Core Tools | 4.12.1 *(installed during W01)* |
+| Node.js | 24.12.0 |
+| Docker | 29.7.2, daemon running, Linux containers |
+
+SWA CLI is deliberately not installed — `npx @azure/static-web-apps-cli` covers W30.
+
+**Carry-forward:** this is an MSDN subscription with a monthly credit and spending limit.
+The ~$10–15/mo Service Bus base charge fits comfortably, but a deployment left running will
+eventually trip the limit — reinforcing the destroy-between-demos assumption in §16.
+
 ### W02 · Version and availability spike · `S`
 **Depends on:** W01
 **Do:** Resolve §17 risks 1–3. Determine the newest .NET isolated version the Functions host
