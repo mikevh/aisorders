@@ -100,6 +100,16 @@ versions are reproducible, and extensionless `tfplan` is ignored.
 **Do:** Log Analytics workspace (30-day retention) and workspace-based Application Insights.
 **Done when:** Both exist and App Insights reports the workspace as its backing store.
 
+**✅ Verified 2026-08-20.** `log-aisdemo-mrx0e` (PerGB2018, 30-day retention) and
+`appi-aisdemo-mrx0e` reporting `ingestionMode: LogAnalytics` with `WorkspaceResourceId`
+pointing at the workspace.
+
+Two notes. The component's own `RetentionInDays` reads 90, but that field is vestigial for a
+workspace-based instance — the workspace's 30 days is what actually governs, so don't be
+misled by it. And `az monitor app-insights` needs a CLI extension that prompts on first use,
+which hangs a non-interactive shell; `az resource show --resource-type
+Microsoft.Insights/components` returns the same data with no extension.
+
 ### W06 · Storage account and tables · `S`
 **Depends on:** W04
 **Do:** Storage account plus the `Orders` and `AuditLog` tables (§8).
