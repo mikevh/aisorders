@@ -112,8 +112,22 @@ Microsoft.Insights/components` returns the same data with no extension.
 
 ### W06 · Storage account and tables · `S`
 **Depends on:** W04
-**Do:** Storage account plus the `Orders` and `AuditLog` tables (§8).
+**Do:** Storage account plus the `Orders` and `AuditLog` tables (§8), and the `deployments`
+blob container that Flex Consumption requires (added by W02).
 **Done when:** Both tables are visible in Storage Browser.
+
+**✅ Verified 2026-08-20.** `staisdemomrx0e` — Standard_LRS, TLS 1.2, HTTPS-only, public blob
+access disabled. Tables `Orders` and `AuditLog` and container `deployments` all confirmed
+present via `az storage ... --auth-mode login`.
+
+Used `storage_account_id` on both the tables and the container, per the v5 change recorded in
+§17.1. Published examples overwhelmingly use `storage_account_name`, which no longer works.
+
+**Left deliberately open:** `allowSharedKeyAccess` is `true`. Disabling it would strengthen
+the no-secrets story, but Terraform's table and container resources reach the storage data
+plane with the account key unless the provider is switched to `storage_use_azuread`. Not
+required by the spec, and a change that would need its own verification — noted rather than
+smuggled in here.
 
 ### W07 · Service Bus namespace and queue · `S`
 **Depends on:** W04
