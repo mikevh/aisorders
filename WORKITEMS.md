@@ -141,6 +141,17 @@ reporting `maxDeliveryCount: 5`, `lockDuration: PT1M`, dead-lettering on expirat
 Standard tier carries the fixed monthly base charge that dominates this demo's cost — the
 reason §16 assumes teardown between demos.
 
+**Scope added during W07:** a diagnostic setting routing `AllMetrics` from the namespace into
+the Log Analytics workspace. §10 lists "dead-letter queue depth over time" as a demo query,
+but that is a Service Bus platform metric, not App Insights data — without this setting it is
+visible only in the portal's Metrics explorer and is not queryable in KQL at all, so **W34 had
+a query that could not run**. Metrics only; the available log categories cover management-plane
+operations rather than per-message activity. Verified enabled and pointed at the workspace.
+
+Note for W34: azurerm v5 replaced the old `metric`/`log` blocks with `enabled_metric` and
+`enabled_log`. Also see the new §10.1 on the two telemetry schemas — queries must target
+**workspace scope**, since `AzureMetrics` is unreachable from the App Insights blade.
+
 ### W08 · Function App · `M`
 **Depends on:** W05, W06, W07
 **Do:** Function App per the W02 hosting decision, Linux, .NET isolated, system-assigned

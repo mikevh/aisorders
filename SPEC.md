@@ -145,6 +145,7 @@ Names use a `random_string` suffix (5 lowercase alphanumeric) for globally-uniqu
 | Function App | `func-aisdemo-<suffix>` | Flex Consumption | Linux, `dotnet-isolated` 10, system-assigned identity |
 | Log Analytics workspace | `log-aisdemo-<suffix>` | `PerGB2018` | 30-day retention |
 | Application Insights | `appi-aisdemo-<suffix>` | Workspace-based | Wired to APIM **and** the Function App |
+| Diagnostic setting | `metrics-to-log-analytics` | — | Routes Service Bus `AllMetrics` to the workspace so DLQ depth is queryable in KQL (§10) |
 | Static Web App | `swa-aisdemo-<suffix>` | `Free` | Hosts the demo UI |
 
 Standard tags on every resource: `project = aisdemo`, `environment = demo`,
@@ -399,6 +400,25 @@ blade, not Terraform-provisioned resources:
 - Processing lag (enqueue → completion) percentiles
 - Failure and retry counts by function
 - Dead-letter queue depth over time
+
+### 10.1 Two things W34 must get right
+
+**DLQ depth is not App Insights data.** It is a Service Bus platform metric
+(`DeadletteredMessages`), which reaches KQL only via the diagnostic setting in §4, landing in
+the `AzureMetrics` table. Without that setting the metric exists solely in the portal's
+Metrics explorer and cannot be joined to application telemetry — forcing a blade switch
+mid-demo. The setting routes metrics only; the available Service Bus log categories cover
+management-plane operations, not per-message activity, so they would add ingestion cost
+without adding anything the demo shows.
+
+**The same telemetry has two schemas.** Queried from the Application Insights resource, the
+tables are `requests`, `dependencies`, `traces`, `exceptions`, `customEvents`. Queried from
+the Log Analytics workspace, the identical rows are `AppRequests`, `AppDependencies`,
+`AppTraces`, `AppExceptions`, `AppEvents` — and columns differ too (`operation_Id` vs
+`OperationId`, `customDimensions` vs `Properties`). `demo/queries.kql` must commit to one
+scope and state which, or half the queries will error for whoever pastes them into the wrong
+blade. **Workspace scope is the choice**, since the `AzureMetrics` table for DLQ depth is only
+reachable there — putting every demo query on one surface.
 
 ---
 
