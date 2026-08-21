@@ -158,6 +158,20 @@ Note for W34: azurerm v5 replaced the old `metric`/`log` blocks with `enabled_me
 identity, with the §15.2 app settings including identity-based connection settings.
 **Done when:** The app is running, reports the correct runtime, and exposes a principal ID.
 
+**✅ Verified 2026-08-20.** `asp-aisdemo-mrx0e` (FC1, Linux) and `func-aisdemo-mrx0e` —
+state `Running`, HTTPS-only, runtime `dotnet-isolated` 10, deployment via `blobContainer` at
+`https://staisdemomrx0e.blob.core.windows.net/deployments` authenticated as
+`SystemAssignedIdentity`, scale 2048 MB / max 40 instances, principal ID
+`764433f9-f3dd-444a-8c79-44d5cc4c6c12`.
+
+**⚠ Platform injects a storage key — see SPEC.md 9.2.1.** Azure adds an
+`AzureWebJobsStorage` setting holding a connection string *with an account key*, which
+Terraform neither manages nor reports as drift. The host resolves it ahead of
+`AzureWebJobsStorage__accountName`, so the identity is bypassed until it is removed.
+Confirmed that deleting it sticks and survives later applies. Deletion is assigned to **W14**
+because the host needs the W09 role assignments in place before it can reach storage without
+the key.
+
 ### W09 · RBAC role assignments · `M`
 **Depends on:** W08
 **Do:** The five role assignments in §9.2, scoped to the namespace and storage account. Add a
@@ -199,8 +213,12 @@ injection, business rules, or event publishing yet — those arrive in W24.
 
 ### W14 · deploy-functions.ps1 · `S`
 **Depends on:** W08, W13
-**Do:** Read Terraform outputs, run `func azure functionapp publish`.
-**Done when:** The script deploys from clean and is safely re-runnable.
+**Do:** Read Terraform outputs, run `func azure functionapp publish`. Also delete the
+platform-injected `AzureWebJobsStorage` setting (SPEC.md 9.2.1) — this step is what makes the
+no-secrets claim actually true, and it belongs here rather than in Terraform because the host
+needs the W09 roles before it can reach storage without the key.
+**Done when:** The script deploys from clean, is safely re-runnable, and
+`az functionapp config appsettings list` shows no `AzureWebJobsStorage` entry afterwards.
 
 ### W15 · ⚑ Milestone: skeleton end-to-end · `S`
 **Depends on:** W09, W14

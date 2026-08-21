@@ -28,7 +28,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W05** — Log Analytics and workspace-based Application Insights
 - [x] **W06** — storage account, demo tables, deployment container
 - [x] **W07** — Service Bus namespace and orders queue
-- [ ] W08–W15 — remaining Terraform foundation through a deployed walking skeleton
+- [x] **W08** — Function App on Flex Consumption with system-assigned identity
+- [ ] W09–W15 — remaining Terraform foundation through a deployed walking skeleton
 - [ ] W16–W21 — API Management and the gateway path
 - [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator

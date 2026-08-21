@@ -359,6 +359,28 @@ connection strings for data services.
 Bindings use identity-based connections: `ServiceBusConnection__fullyQualifiedNamespace`
 and `AzureWebJobsStorage__accountName` rather than connection strings.
 
+#### 9.2.1 The platform fights this — discovered in W08
+
+Creating the Function App causes Azure to inject an **`AzureWebJobsStorage` app setting
+containing a full connection string with an account key**, alongside the identity-based
+`AzureWebJobsStorage__accountName` this spec sets. Terraform neither manages nor reports it:
+`terraform plan` shows no drift, so nothing surfaces the key unless you go looking.
+
+This is not cosmetic. The host resolves `AzureWebJobsStorage` **before**
+`AzureWebJobsStorage__accountName`, so while both are present the runtime authenticates to
+storage with the key and the managed identity is ignored entirely.
+
+Note the distinction that makes this easy to miss: `storage_authentication_type =
+"SystemAssignedIdentity"` governs the **deployment package** container only. Runtime host
+storage — host state, timer schedules, singleton locks — is a separate concern configured
+through `AzureWebJobsStorage`, and it is that second one the platform populates with a key.
+
+**Resolution.** The setting must be deleted after deployment. Verified in W08 that deleting
+it sticks and that Terraform does not reintroduce it on subsequent applies. Because the host
+then genuinely needs the identity to reach storage, deletion has to happen **after** the §9.2
+role assignments exist — so it belongs in `deploy-functions.ps1` (W14), which already runs
+after `terraform apply`, rather than in Terraform itself.
+
 ### 9.3 The one secret
 
 APIM authenticates to the Function App with a **function host key**, read by Terraform via
