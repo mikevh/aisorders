@@ -1,0 +1,207 @@
+# Azure Integration Services Demo — request collection
+#
+# Runs in VS Code (REST Client) or JetBrains Rider. Fill the two variables from
+# Terraform, then work down: the file follows SPEC.md 14 in presentation order.
+#
+#   cd infra
+#   terraform output -raw gateway_url
+#   terraform output -raw subscription_key
+#
+# @name is set on requests whose response feeds a later one, so order IDs
+# thread through without copy-paste.
+
+@gateway = https://apim-aisdemo-REPLACE.azure-api.net/orders-demo
+@subscriptionKey = REPLACE_WITH_TERRAFORM_OUTPUT
+
+
+###############################################################################
+# 14.1  HAPPY PATH
+#
+# Accepted synchronously, processed asynchronously. Note the 202 rather than a
+# 200: the gateway is not waiting for the work, and the Location header points
+# at where the answer will appear.
+###############################################################################
+
+# @name happyPath
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{
+  "customerId": "CUST-1042",
+  "customerName": "Contoso Ltd",
+  "items": [
+    { "sku": "WIDGET-01", "quantity": 3, "unitPrice": 249.99 }
+  ]
+}
+
+### Poll until it reaches Completed. Run this two or three times in a row —
+### the status walks Accepted -> Processing -> Completed.
+GET {{gateway}}/orders/{{happyPath.response.body.orderId}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+
+###############################################################################
+# 14.2  FAN-OUT AND FILTERING
+#
+# One event, two independent subscribers, a SQL filter deciding delivery.
+# The threshold is notification_threshold (default 500).
+#
+# The small order reaches AuditHandler only. The large one reaches both.
+# Neither knows the other exists, and ProcessOrder knows about neither.
+###############################################################################
+
+# @name smallOrder
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{
+  "customerId": "CUST-SMALL",
+  "customerName": "Below Threshold",
+  "items": [
+    { "sku": "TRINKET-01", "quantity": 1, "unitPrice": 50.00 }
+  ]
+}
+
+###
+# @name largeOrder
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{
+  "customerId": "CUST-LARGE",
+  "customerName": "Above Threshold",
+  "items": [
+    { "sku": "MACHINE-01", "quantity": 1, "unitPrice": 5000.00 }
+  ]
+}
+
+### Both complete. The difference is invisible here and visible in the
+### telemetry — see demo/queries.kql, "who handled which event".
+GET {{gateway}}/orders/{{largeOrder.response.body.orderId}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+
+###############################################################################
+# 14.3  POISON MESSAGE -> DEAD LETTER -> REPLAY
+#
+# simulateFailure makes ProcessOrder throw. Service Bus redelivers five times,
+# then dead-letters.
+#
+# Watch the order row stall at Retrying with attemptCount 5. Nothing updates it
+# after that: the message is in the dead-letter queue and no code is looking at
+# it. That gap is the lesson, not a bug.
+###############################################################################
+
+# @name poisonOrder
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{
+  "customerId": "CUST-POISON",
+  "customerName": "Poison Pill",
+  "simulateFailure": true,
+  "items": [
+    { "sku": "WIDGET-01", "quantity": 1, "unitPrice": 99.00 }
+  ]
+}
+
+### Poll this a few times over ~60s. It climbs to Retrying / attemptCount 5,
+### carries the failure reason, and then stops changing entirely.
+GET {{gateway}}/orders/{{poisonOrder.response.body.orderId}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+### Drain the dead-letter queue and resubmit.
+###
+### Replay clears the injected failure switch, standing in for the remediation
+### an operator would do first. Add ?remediate=false to replay it untouched and
+### watch it dead-letter all over again — which is what replaying a genuinely
+### broken message actually does.
+POST {{gateway}}/admin/replay?max=10
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{}
+
+### Now Completed, attemptCount back to 1, failureReason cleared.
+GET {{gateway}}/orders/{{poisonOrder.response.body.orderId}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+
+###############################################################################
+# 14.4  MALFORMED MESSAGE
+#
+# Not runnable from here. It has to be injected straight onto the queue,
+# bypassing the gateway, which needs a Service Bus data-plane token:
+#
+#   ./scripts/inject-malformed.ps1
+#
+# It fails at deserialization rather than in business logic, and dead-letters
+# the same way. The contrast with the next section is the point: one kind of
+# bad input the gateway catches, one kind it never sees.
+###############################################################################
+
+
+###############################################################################
+# 14.5  GATEWAY REJECTION
+#
+# These never reach compute. No Function invocation appears in Application
+# Insights for any of them — the gateway answered on its own.
+###############################################################################
+
+### No subscription key -> 401 at the gateway.
+POST {{gateway}}/orders
+Content-Type: application/json
+
+{
+  "customerId": "CUST-NOKEY",
+  "items": [ { "sku": "W", "quantity": 1, "unitPrice": 10.00 } ]
+}
+
+### Invalid subscription key -> 401 at the gateway.
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: not-a-real-key
+Content-Type: application/json
+
+{
+  "customerId": "CUST-BADKEY",
+  "items": [ { "sku": "W", "quantity": 1, "unitPrice": 10.00 } ]
+}
+
+### Rate limiting is NOT part of this scenario on the Consumption tier, which
+### permits no rate-limiting policy at all — rate-limit, rate-limit-by-key,
+### quota, and quota-by-key are each rejected at deploy time. Set
+### apim_sku_name to a paid tier and the policy appears automatically.
+### See SPEC.md 5.1.1.
+
+### Valid key, invalid body -> 400 from the function, in problem+json.
+### The gateway let this through; the backend rejected it. Worth showing right
+### after the 401s, because the two look similar to a caller and are decided in
+### completely different places.
+POST {{gateway}}/orders
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+Content-Type: application/json
+
+{
+  "customerId": "",
+  "items": []
+}
+
+### Unknown order -> 404 in problem+json.
+GET {{gateway}}/orders/00000000-0000-0000-0000-000000000000
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+
+###############################################################################
+# 14.6  BURST AND SCALE-OUT
+#
+# Not runnable from here either — it needs concurrency:
+#
+#   ./scripts/load-test.ps1 -Count 100
+#
+# Raise PROCESSING_DELAY_MS first (terraform apply -var processing_delay_ms=3000)
+# so the queue visibly fills before it drains.
+###############################################################################

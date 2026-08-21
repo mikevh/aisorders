@@ -1,0 +1,130 @@
+// Azure Integration Services Demo — Log Analytics queries
+//
+// SCOPE MATTERS. Run these from the LOG ANALYTICS WORKSPACE, not from the
+// Application Insights resource. The same telemetry carries two different
+// schemas depending on where you query it:
+//
+//     App Insights blade        Workspace blade
+//     requests                  AppRequests
+//     dependencies              AppDependencies
+//     traces                    AppTraces
+//     exceptions                AppExceptions
+//     customDimensions          Properties
+//     operation_Id              OperationId
+//
+// Workspace scope is the choice because AzureMetrics — where Service Bus
+// queue depth lives — is only reachable there. See SPEC.md 10.1.
+//
+//     Portal > Log Analytics workspaces > log-aisdemo-<suffix> > Logs
+
+
+// ===========================================================================
+// 1. One order, end to end
+// ===========================================================================
+// The single most useful query in the demo. Paste an order ID and every stage
+// of its journey appears in order: gateway, producer, queue hop, processor,
+// and both subscribers.
+//
+// This works because W27 tags identifiers onto the SPAN. Structured log
+// arguments alone would attach them to AppTraces only, and this query would
+// miss most of the journey.
+let orderId = "REPLACE-WITH-AN-ORDER-ID";
+union AppRequests, AppDependencies
+| where TimeGenerated > ago(1h)
+| where tostring(Properties["orderId"]) == orderId
+| project TimeGenerated, Type, Name, AppRoleName,
+          Status = tostring(Properties["orderStatus"]),
+          DurationMs, Success
+| order by TimeGenerated asc
+
+
+// ===========================================================================
+// 2. The whole transaction, including the gateway
+// ===========================================================================
+// Same idea keyed on OperationId instead. Use this to show that APIM, both
+// HTTP functions, the Service Bus hop, and the queue-triggered processor all
+// share ONE operation. Six spans is the expected shape for a happy order.
+//
+// If the gateway is missing here, http_correlation_protocol has reverted to
+// Legacy and APIM is recording its own separate operation.
+let operationId = "REPLACE-WITH-AN-OPERATION-ID";
+union AppRequests, AppDependencies
+| where TimeGenerated > ago(1h)
+| where OperationId == operationId
+| project TimeGenerated, Type, Name, AppRoleName, DurationMs, Success
+| order by TimeGenerated asc
+
+
+// ===========================================================================
+// 3. Processing lag — accepted to completed
+// ===========================================================================
+// How long an order spends in the system, split by percentile. Raise
+// PROCESSING_DELAY_MS and re-run to watch the distribution move.
+AppRequests
+| where TimeGenerated > ago(1h)
+| where Name has "ProcessMessage" or Name has "api/orders"
+| extend orderId = tostring(Properties["orderId"])
+| where isnotempty(orderId)
+| summarize accepted = minif(TimeGenerated, Name has "api/orders"),
+            completed = maxif(TimeGenerated, Name has "ProcessMessage")
+         by orderId
+| where isnotnull(accepted) and isnotnull(completed)
+| extend lagMs = datetime_diff('millisecond', completed, accepted)
+| summarize orders = count(),
+            p50 = percentile(lagMs, 50),
+            p95 = percentile(lagMs, 95),
+            max = max(lagMs)
+
+
+// ===========================================================================
+// 4. Failures and retries by function
+// ===========================================================================
+// During scenario 14.3 the poisoned order appears here five times — one row
+// per delivery attempt — which is the retry behaviour made visible.
+union AppRequests, AppDependencies, AppExceptions
+| where TimeGenerated > ago(1h)
+| where Success == false or Type == "AppExceptions"
+| extend fn = coalesce(tostring(Properties["orderId"]), "n/a")
+| summarize failures = count(), orders = dcount(fn) by Name, AppRoleName
+| order by failures desc
+
+
+// ===========================================================================
+// 5. Dead-letter queue depth over time
+// ===========================================================================
+// NOT Application Insights data. This is a Service Bus platform metric,
+// reachable only because a diagnostic setting routes AllMetrics into this
+// workspace. Without that setting the metric exists solely in the portal's
+// Metrics explorer and cannot be joined to anything.
+AzureMetrics
+| where TimeGenerated > ago(1h)
+| where ResourceProvider == "MICROSOFT.SERVICEBUS"
+| where MetricName in ("DeadletteredMessages", "ActiveMessages")
+| summarize value = max(Maximum) by bin(TimeGenerated, 1m), MetricName
+| render timechart
+
+
+// ===========================================================================
+// 6. Who handled which event
+// ===========================================================================
+// The fan-out proof for scenario 14.2. AuditHandler appears for every order;
+// NotificationHandler appears only for completed orders above the threshold.
+// A small order shows exactly one row here, a large one shows two.
+AppTraces
+| where TimeGenerated > ago(1h)
+| where Message has "Audited " or Message has "Notifying customer"
+| extend handler = iff(Message has "Audited ", "AuditHandler", "NotificationHandler")
+| extend orderId = tostring(Properties["orderId"])
+| project TimeGenerated, handler, Message
+| order by TimeGenerated asc
+
+
+// ===========================================================================
+// 7. Gateway rejections — proof that compute was never touched
+// ===========================================================================
+// Scenario 14.5. The 401s appear as APIM rows with no matching function
+// invocation anywhere. Compare the two counts: they should not match.
+AppRequests
+| where TimeGenerated > ago(1h)
+| summarize requests = count() by AppRoleName, ResultCode
+| order by AppRoleName asc, ResultCode asc

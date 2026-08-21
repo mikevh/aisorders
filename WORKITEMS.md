@@ -667,16 +667,35 @@ toggle and an amount that can cross the $500 filter threshold; a status table po
 malformed message for 14.4.
 **Done when:** The file runs top to bottom in VS Code REST Client against a live deployment.
 
+**✅ Written and verified 2026-08-21.** Follows §14 in presentation order and chains order IDs
+through `@name` references so nothing is copy-pasted mid-demo. Scenarios 14.4 and 14.6 are not
+runnable from a .http file — one needs a data-plane token, the other needs concurrency — so it
+points at the scripts instead rather than pretending otherwise.
+
 ### W33 · load-test.ps1 and teardown.ps1 · `S`
 **Depends on:** W21
 **Do:** Concurrent order burst for scenario 14.6; teardown wrapping `terraform destroy`.
 **Done when:** The burst drives visible queue depth; teardown leaves no resources behind.
+
+**✅ Written 2026-08-21.** `load-test.ps1` (concurrent burst, prices spanning the notification
+threshold so it exercises the filter too), `teardown.ps1` (confirms by resource group name,
+then verifies with `az group exists` rather than trusting the exit code), and
+`inject-malformed.ps1` for scenario 14.4.
+
+**Scenario 14.4 verified end to end:** injected a malformed message straight onto the queue,
+watched it dead-letter within 15s, then confirmed replay reports
+`{"drained":1,"resubmitted":0}` — discarded rather than looped back, since replaying something
+that cannot be deserialized just returns it to the dead-letter queue.
 
 ### W34 · queries.kql · `S`
 **Depends on:** W27
 **Do:** End-to-end trace by order ID, processing-lag percentiles, failure and retry counts by
 function, DLQ depth over time. Documentation only — not provisioned (§10).
 **Done when:** Each query returns useful rows against a live deployment.
+
+**✅ Written 2026-08-21.** Seven queries, all at **workspace scope**, with the two-schema
+mapping documented at the top of the file — that is the trap §10.1 records, and half these
+queries would error if pasted into the App Insights blade instead.
 
 ### W35 · runbook.md · `M`
 **Depends on:** W31, W32, W34
