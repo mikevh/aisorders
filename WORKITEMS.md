@@ -675,10 +675,10 @@ that straddle the notification threshold, a simulate-failure toggle, a status ta
 only non-terminal orders (so the loop stops on its own), and a replay button that reports
 drained-versus-resubmitted.
 
-CORS preflight verified from the real origin:  comes back as the
+CORS preflight verified from the real origin: `Access-Control-Allow-Origin` comes back as the
 exact SWA URL, and the allowed method and headers match the policy.
 
-The page reads  bodies, so a gateway 401 or a backend 400 shows its actual
+The page reads `problem+json` bodies, so a gateway 401 or a backend 400 shows its actual
 reason rather than a bare status code — worth having when the difference between those two is
 the thing being taught.
 
