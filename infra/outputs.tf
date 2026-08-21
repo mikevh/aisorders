@@ -45,3 +45,14 @@ output "log_analytics_workspace_name" {
   description = "Workspace backing Application Insights. Query demo/queries.kql here — see SPEC.md 10.1."
   value       = azurerm_log_analytics_workspace.main.name
 }
+
+output "gateway_url" {
+  description = "Base URL for the Orders API through API Management."
+  value       = "${azurerm_api_management.main.gateway_url}/orders-demo"
+}
+
+output "subscription_key" {
+  description = "Subscription key for the demo product. Send as Ocp-Apim-Subscription-Key."
+  value       = azurerm_api_management_subscription.demo.primary_key
+  sensitive   = true
+}

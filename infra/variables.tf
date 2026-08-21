@@ -83,3 +83,15 @@ variable "notification_threshold" {
   type        = number
   default     = 500
 }
+
+variable "apim_sku_name" {
+  description = <<-DESC
+    API Management SKU. Consumption_0 is near-free and provisions in minutes,
+    but permits no rate-limiting policies at all: rate-limit, rate-limit-by-key,
+    quota, and quota-by-key are ALL rejected with "Policy is not allowed in
+    'Consumption' sku". Demo scenario 14.5 therefore needs a paid tier.
+    Set to Basicv2_1 or Developer_1 to enable it.
+  DESC
+  type        = string
+  default     = "Consumption_0"
+}

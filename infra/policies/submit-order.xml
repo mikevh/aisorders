@@ -1,0 +1,33 @@
+<policies>
+  <inbound>
+    <base />
+    <!--
+      Rate limiting is emitted only on a tier that permits it. On Consumption,
+      rate-limit, rate-limit-by-key, quota, and quota-by-key are ALL rejected at
+      deploy time with "Policy is not allowed in 'Consumption' sku".
+      Set var.apim_sku_name to a paid tier to enable demo scenario 14.5.
+
+      No validate-content here either. Its schema-id only resolves schemas that
+      belong to an OpenAPI-imported API — on this API, whose operations are
+      defined individually, a registered schema returns 200 on GET and is still
+      reported as non-existent by the policy validator. Without a schema the
+      policy rejects application/json as an "unspecified content type" and
+      breaks every valid request. Field validation lives in SubmitOrder, which
+      scenario 14.4 requires regardless since it bypasses the gateway.
+
+      Gateway-level rejection is still demonstrable on Consumption without any
+      policy: a call with no subscription key is refused at the gateway and
+      never reaches compute.
+    -->
+    ${rate_limit_policy}
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

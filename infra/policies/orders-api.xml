@@ -1,0 +1,94 @@
+<policies>
+  <inbound>
+    <base />
+
+    <!--
+      CORS for the Static Web App and local development. The SWA origin is
+      injected by Terraform; W30 creates the site itself.
+    -->
+    <cors allow-credentials="false">
+      <allowed-origins>
+        <origin>${swa_origin}</origin>
+        <origin>http://localhost:4280</origin>
+        <origin>http://localhost:5173</origin>
+      </allowed-origins>
+      <allowed-methods>
+        <method>GET</method>
+        <method>POST</method>
+        <method>OPTIONS</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>content-type</header>
+        <header>ocp-apim-subscription-key</header>
+      </allowed-headers>
+      <expose-headers>
+        <header>x-correlation-id</header>
+        <header>location</header>
+      </expose-headers>
+    </cors>
+
+    <!--
+      The gateway owns the correlation ID. exists-action="override" discards
+      anything the caller sent: an inbound header would be untrusted input
+      flowing straight into the telemetry pipeline, which invites log
+      injection, unbounded dimension values, and deliberate ID collision.
+      Cross-boundary trace joining is handled by W3C traceparent instead.
+      See SPEC.md 5.1.
+    -->
+    <set-variable name="correlationId" value="@(Guid.NewGuid().ToString())" />
+    <set-header name="x-correlation-id" exists-action="override">
+      <value>@((string)context.Variables["correlationId"])</value>
+    </set-header>
+
+    <set-backend-service base-url="${backend_url}" />
+
+    <!--
+      The one secret in the system (SPEC.md 9.3). Stored as a secret named
+      value, never inline. The alternative — APIM managed identity plus Easy
+      Auth — needs an Entra app registration and tenant permissions, which
+      would block anyone holding only subscription rights from deploying.
+    -->
+    <set-header name="x-functions-key" exists-action="override">
+      <value>{{func-host-key}}</value>
+    </set-header>
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+    <set-header name="x-correlation-id" exists-action="override">
+      <value>@(context.Variables.ContainsKey("correlationId") ? (string)context.Variables["correlationId"] : "not-assigned")</value>
+    </set-header>
+  </outbound>
+
+  <on-error>
+    <base />
+    <!--
+      Every reference to correlationId here is guarded. Rejections that happen
+      before the inbound policy runs - a missing subscription key, most
+      obviously - never set the variable, and an unguarded lookup throws inside
+      the error handler itself. That turns a clean 401 into an opaque 500,
+      which is a genuinely confusing thing to hit during a demo.
+    -->
+    <set-header name="content-type" exists-action="override">
+      <value>application/problem+json</value>
+    </set-header>
+    <set-header name="x-correlation-id" exists-action="override">
+      <value>@(context.Variables.ContainsKey("correlationId") ? (string)context.Variables["correlationId"] : "not-assigned")</value>
+    </set-header>
+    <set-body>@{
+      var correlationId = context.Variables.ContainsKey("correlationId")
+        ? (string)context.Variables["correlationId"]
+        : "not-assigned";
+      return new JObject(
+        new JProperty("title", "Gateway error"),
+        new JProperty("status", context.Response?.StatusCode ?? 500),
+        new JProperty("detail", context.LastError?.Message ?? "The request could not be completed."),
+        new JProperty("correlationId", correlationId)
+      ).ToString();
+    }</set-body>
+  </on-error>
+</policies>

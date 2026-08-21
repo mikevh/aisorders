@@ -36,7 +36,7 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W13** — ProcessOrder (minimal)
 - [x] **W14** — function deploy script
 - [x] **W15** — ⚑ walking skeleton running end to end on Azure
-- [ ] W16–W21 — API Management and the gateway path
+- [x] **W16–W21** — ⚑ API Management: gateway path verified end to end
 - [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator
 - [ ] W30–W35 — web UI, request collection, presenter runbook

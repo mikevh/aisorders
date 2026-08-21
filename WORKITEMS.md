@@ -390,11 +390,20 @@ queue depth spike and drain from the `AzureMetrics` data W07 routes to the works
 (§5), product `aisdemo-starter` published with subscription required.
 **Done when:** The API is callable from the Azure portal test console with a subscription key.
 
+**✅ Verified 2026-08-20.** `apim-aisdemo-mrx0e` (Consumption_0) provisioned in under two
+minutes, so the fast-provisioning claim behind the tier choice holds. API `orders-api` at path
+`orders-demo`, three operations, product `aisdemo-starter` published, and a named subscription
+so the key is a Terraform output rather than something clicked out of the portal.
+
 ### W17 · APIM backend wiring · `M`
 **Depends on:** W16, W08
 **Do:** Read the function host key via `azurerm_function_app_host_keys`, store it as a secret
 named value, configure the backend and `set-backend-service`.
 **Done when:** A call through the gateway reaches the Function App and returns its response.
+
+**✅ Verified 2026-08-20.** Host key read via `azurerm_function_app_host_keys`, stored as a
+secret named value, injected as `x-functions-key`. Calls through the gateway reach the app and
+return its response, and the key is never handled by hand.
 
 ### W18 · Core policies · `M`
 **Depends on:** W17
@@ -405,11 +414,59 @@ returning `application/problem+json` carrying the correlation ID.
 `x-correlation-id` is answered with a different one; a forced backend error returns
 problem+json.
 
+**✅ Verified 2026-08-20.** Sent `x-correlation-id: ATTACKER-SUPPLIED`; the response carried a
+freshly generated GUID instead. Backend errors return `application/problem+json` carrying the
+correlation ID.
+
+**⚠ An unguarded policy variable turned 401 into 500.** Both the outbound and `on-error`
+sections read `context.Variables["correlationId"]` directly. A request with no subscription key
+is rejected *before* the inbound policy runs, so the variable was never set, the lookup threw
+inside the error handler itself, and APIM returned an opaque
+`{"statusCode":500,"message":"Internal server error"}`. Every reference is now guarded with
+`ContainsKey`. Confirmed afterwards: missing key -> **401**, invalid key -> **401**, valid key
+with a bad body -> **400** problem+json.
+
+Worth remembering generally: anything referenced in `on-error` must survive the case where the
+request never reached the policy that set it.
+
 ### W19 · Rate-limit policy · `S`
 **Depends on:** W18
 **Do:** `rate-limit-by-key` at operation scope on `POST /orders`, 10 per 60s, keyed on
 `context.Subscription.Id`. The plain `rate-limit` policy is unavailable in this tier (§5.1).
 **Done when:** The 11th call inside a window returns `429` and produces no Function invocation.
+
+**❌ Not achievable on Consumption - SPEC.md 5.1 was wrong.** §5.1 stated that
+`rate-limit-by-key` was "the required substitute" in this tier. It is not. Probed against the
+live gateway:
+
+| Policy | Consumption |
+|---|---|
+| `rate-limit` | rejected |
+| `rate-limit-by-key` | rejected |
+| `quota` | rejected |
+| `quota-by-key` | rejected |
+| `check-header` | allowed |
+| `ip-filter` | allowed |
+| `validate-content` | allowed at deploy |
+| `return-response` | allowed |
+
+The exact error is `Policy is not allowed in 'Consumption' sku`. **The Consumption tier has no
+rate-limiting policy at all.**
+
+**Resolution.** `var.apim_sku_name` (default `Consumption_0`) now gates the policy: the
+`rate-limit-by-key` element is emitted only on a paid tier, so scenario 14.5 is a one-variable
+change away rather than a rewrite. On Consumption the gateway-rejection point is still
+demonstrable with no policy whatsoever, since a call with no subscription key is refused at the
+gateway and never reaches compute.
+
+**`validate-content` deploys but is unusable here.** It passes policy validation, then rejects
+every request with *"Unspecified content type application/json is not allowed"* - including
+with `unspecified-content-type-action="ignore"`. Declaring
+`<content type="application/json" validate-as="json">` does not help, because the element only
+registers with a resolvable `schema-id`, and `schema-id` only resolves schemas belonging to an
+**OpenAPI-imported** API. A schema registered against this API returns 200 on GET and is still
+reported as *"The schema order-json does not exist"* by the policy validator. Removed; field
+validation stays in `SubmitOrder`, which scenario 14.4 requires regardless.
 
 ### W20 · Terraform outputs · `S`
 **Depends on:** W16
@@ -422,6 +479,32 @@ deployment token, App Insights connection string. Mark secrets `sensitive`.
 **Do:** Submit an order through APIM rather than directly.
 **Done when:** `202` returns with a correlation ID, the order completes, and App Insights shows
 one transaction spanning gateway and both functions.
+
+**✅ Gate passed 2026-08-20.** `POST /orders` through the gateway returns **202**, the order
+reaches **Completed**, and a single operation carries **six spans**:
+
+    POST /orders-demo/orders          (apim-aisdemo-mrx0e West US 2)
+    POST /api/orders                  (backend dependency)
+    POST api/orders                   (function request)
+    function SubmitOrder
+    ServiceBusProcessor.ProcessMessage
+    function ProcessOrder
+
+That is §10's end-to-end transaction with the gateway included.
+
+**⚠ A logger emits nothing on its own.** `azurerm_api_management_logger` only names a
+destination. Gateway telemetry requires a *diagnostic* resource, and the API-scope
+`azurerm_api_management_api_diagnostic` alone produced nothing - a service-scope
+`azurerm_api_management_diagnostic` was also needed before any APIM rows appeared.
+
+**`http_correlation_protocol = "W3C"` is load-bearing.** The default, `Legacy`, uses
+`Request-Id` headers that do not line up with the `traceparent` the Functions worker and the
+Service Bus SDK emit. Left on the default, the gateway records a *separate* operation and the
+six-span view above collapses into disconnected fragments.
+
+**Housekeeping:** six test orders remain in the `Orders` table. `az storage entity delete` is
+currently broken (`Cannot deserialize content-type: text/html`), and they are cleared by
+teardown anyway.
 
 ---
 
