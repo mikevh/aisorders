@@ -323,6 +323,17 @@ needs the W09 roles before it can reach storage without the key.
 **Done when:** The script deploys from clean, is safely re-runnable, and
 `az functionapp config appsettings list` shows no `AzureWebJobsStorage` entry afterwards.
 
+**✅ Verified 2026-08-20.** `scripts/deploy-functions.ps1` publishes, deletes the setting, and
+re-verifies it is gone, failing loudly if not. Both branches exercised: reinstated the key
+deliberately and confirmed the script removed it, then confirmed the "not present" path is a
+clean no-op. Also added the outputs the script consumes; W20 extends them.
+
+**⚠ Core Tools and Terraform disagreed on the runtime version string.** Terraform's
+`runtime_version = "10"` against a local project targeting `net10.0` made `func publish`
+report a mismatch, offer an interactive prompt, and then die on a null reference in a
+non-interactive shell. `--force` works around it but suppresses genuine pre-publish checks,
+so the fix is `runtime_version = "10.0"` in Terraform — Azure accepts and echoes that form.
+
 ### W15 · ⚑ Milestone: skeleton end-to-end · `S`
 **Depends on:** W09, W14
 **Do:** `terraform apply`, deploy functions, submit an order directly to the Function App.
@@ -331,6 +342,43 @@ queue-triggered invocation stitched into one transaction.
 **Why here:** This proves managed identity, identity-based bindings, RBAC propagation, and
 trace correlation across the queue hop all work — the four things most likely to be wrong,
 proven before any of them has dependents.
+
+**✅ Gate passed 2026-08-20.** `POST /api/orders` on the deployed app returned **202**, and
+the order reached **Completed** with `AttemptCount 1` and the queue drained — running on Flex
+Consumption under the system-assigned identity, with no storage key present.
+
+**End-to-end correlation confirmed.** `SubmitOrder` and `ProcessOrder` share one
+`OperationId` (`917f18f2…`), so a single transaction spans the HTTP call, the Service Bus
+hop, and the queue-triggered function. This is the §10 claim, and it means the W10
+OpenTelemetry decision preserves trace context across the bus.
+
+**⚠ WEBSITE_INSTANCE_ID does not exist on Flex Consumption.** The W12 credential fix keyed on
+it to mean "running in Azure", which inverted the logic once deployed: managed identity was
+excluded exactly where it was the only option, and every request failed with
+`CredentialUnavailableException` listing eight credentials, none of them managed identity.
+Measured on the deployed host:
+
+    IDENTITY_ENDPOINT=True  MSI_ENDPOINT=True  WEBSITE_SITE_NAME=True  WEBSITE_INSTANCE_ID=False
+
+`CreateCredential` now keys on `IDENTITY_ENDPOINT`/`MSI_ENDPOINT` — the variables
+`ManagedIdentityCredential` itself reads — and logs which path it chose, since that one line
+is the fastest route to diagnosing an identity failure.
+
+**⚠ Unhandled exceptions were invisible.** The first failure returned a bare 500 with an
+empty body, **no `AppExceptions` row, and no failed-dependency span** — nothing to diagnose
+from despite telemetry otherwise flowing (335 traces). `SubmitOrder` now catches, logs, and
+returns `problem+json`. Note the tradeoff this creates: a caught exception leaves the
+function's dependency span marked `Success=True` while `AppRequests` still records the 500.
+Worth revisiting in **W27**.
+
+**Config is snapshotted at startup.** `DemoOptions` is built once, so a since-deleted app
+setting stays live in the worker until it restarts. This produced a genuinely confusing
+intermediate state where table writes succeeded via a stale connection string while Service
+Bus failed on identity.
+
+**⏳ Live Metrics still unverified.** It cannot be checked from the CLI — it is a real-time
+portal blade. Needs a manual look during **W36**. The fallback for §14.6 is already in place:
+queue depth spike and drain from the `AzureMetrics` data W07 routes to the workspace.
 
 ---
 

@@ -7,6 +7,7 @@ using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 
 var builder = FunctionsApplication.CreateBuilder(args);
@@ -48,8 +49,13 @@ builder.Services.Configure<WorkerOptions>(options =>
 var demoOptions = DemoOptions.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(demoOptions);
 
-builder.Services.AddSingleton(_ => AzureClientFactory.CreateServiceBusClient(demoOptions));
-builder.Services.AddSingleton(_ => AzureClientFactory.CreateTableServiceClient(demoOptions));
+// Resolved lazily so the factory can log which credential path it chose. That
+// line is the fastest way to diagnose an identity failure — see the remarks on
+// AzureClientFactory.CreateCredential.
+builder.Services.AddSingleton(sp => AzureClientFactory.CreateServiceBusClient(
+    demoOptions, sp.GetRequiredService<ILoggerFactory>().CreateLogger("AzureClientFactory")));
+builder.Services.AddSingleton(sp => AzureClientFactory.CreateTableServiceClient(
+    demoOptions, sp.GetRequiredService<ILoggerFactory>().CreateLogger("AzureClientFactory")));
 
 builder.Services.AddSingleton<OrderMessaging>();
 builder.Services.AddSingleton<OrderRepository>();

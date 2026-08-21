@@ -86,11 +86,32 @@ public sealed class SubmitOrder
 
         // Persist before enqueueing. The reverse order allows a processor to
         // pick the message up before any row exists to update.
-        await _orders.UpsertAsync(entity, cancellationToken);
+        //
+        // Wrapped because an unhandled exception here surfaces as a bare 500
+        // with an empty body, and — in OpenTelemetry mode — leaves no
+        // AppExceptions row and no failed-dependency span to diagnose from.
+        // Logging it explicitly is the difference between a diagnosable
+        // failure and a silent one.
+        try
+        {
+            await _orders.UpsertAsync(entity, cancellationToken);
 
-        await _messaging.SendOrderAsync(
-            new OrderMessage { OrderId = orderId, CorrelationId = correlationId, Order = submission },
-            cancellationToken);
+            await _messaging.SendOrderAsync(
+                new OrderMessage { OrderId = orderId, CorrelationId = correlationId, Order = submission },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to accept order {OrderId} for {CustomerId}: {ExceptionType}: {ExceptionMessage}. CorrelationId={CorrelationId}",
+                orderId, submission.CustomerId, ex.GetType().FullName, ex.Message, correlationId);
+
+            return Problem(
+                "Could not accept the order",
+                StatusCodes.Status500InternalServerError,
+                $"{ex.GetType().Name}: {ex.Message}",
+                correlationId);
+        }
 
         _logger.LogInformation(
             "Accepted order {OrderId} for {CustomerId}, total {OrderTotal}. CorrelationId={CorrelationId}",
