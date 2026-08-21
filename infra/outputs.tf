@@ -56,3 +56,19 @@ output "subscription_key" {
   value       = azurerm_api_management_subscription.demo.primary_key
   sensitive   = true
 }
+
+output "static_web_app_name" {
+  description = "Static Web App hosting the demo UI."
+  value       = azurerm_static_web_app.main.name
+}
+
+output "static_web_app_url" {
+  description = "Public URL of the demo UI."
+  value       = "https://${azurerm_static_web_app.main.default_host_name}"
+}
+
+output "static_web_app_api_key" {
+  description = "Deployment token for the Static Web App. Consumed by deploy-web.ps1 via an environment variable, never written to disk."
+  value       = azurerm_static_web_app.main.api_key
+  sensitive   = true
+}

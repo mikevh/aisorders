@@ -40,7 +40,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W22–W26** — status endpoint, fan-out, dead-letter replay
 - [x] **W27** — telemetry enrichment
 - [x] **W28–W29** — fully local development against the Service Bus emulator
-- [ ] W30–W35 — web UI, request collection, presenter runbook
+- [x] **W30–W34** — web UI, request collection, queries, scripts
+- [ ] W35 — presenter runbook
 - [ ] W36–W38 — validation, documentation, clean-room rebuild
 
 ## Prerequisites

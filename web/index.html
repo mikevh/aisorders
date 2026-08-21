@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders — Azure Integration Services Demo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <p class="eyebrow">Azure Integration Services Demo</p>
+      <h1>Orders</h1>
+      <p class="standfirst">
+        Every request here goes through API Management, onto a Service Bus queue,
+        and is processed asynchronously. The API answers before the work is done —
+        that gap is the point.
+      </p>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="panel" aria-labelledby="submit-heading">
+      <h2 id="submit-heading">Submit an order</h2>
+
+      <form id="order-form" autocomplete="off">
+        <div class="field">
+          <label for="customerId">Customer ID</label>
+          <input id="customerId" name="customerId" value="CUST-1042" required>
+        </div>
+
+        <div class="field">
+          <label for="customerName">Customer name</label>
+          <input id="customerName" name="customerName" value="Contoso Ltd" required>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="sku">SKU</label>
+            <input id="sku" name="sku" value="WIDGET-01" required>
+          </div>
+          <div class="field narrow">
+            <label for="quantity">Qty</label>
+            <input id="quantity" name="quantity" type="number" min="1" value="3" required>
+          </div>
+          <div class="field narrow">
+            <label for="unitPrice">Unit price</label>
+            <input id="unitPrice" name="unitPrice" type="number" min="0" step="0.01" value="249.99" required>
+          </div>
+        </div>
+
+        <p class="total" id="total-preview">Total 749.97</p>
+
+        <label class="check">
+          <input type="checkbox" id="simulateFailure">
+          <span>
+            <strong>Simulate a processing failure</strong>
+            <em>Retries five times, then dead-letters. Scenario 14.3.</em>
+          </span>
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="submit-btn">Submit order</button>
+          <button type="button" id="preset-small">Below threshold</button>
+          <button type="button" id="preset-large">Above threshold</button>
+        </div>
+      </form>
+
+      <p class="hint">
+        The threshold decides fan-out: orders above it reach both topic
+        subscribers, orders below reach only the audit subscriber.
+      </p>
+    </section>
+
+    <section class="panel" aria-labelledby="ops-heading">
+      <h2 id="ops-heading">Operations</h2>
+
+      <p class="hint tight">
+        Drains the dead-letter queue and resubmits. Replay clears the injected
+        failure switch, standing in for the remediation an operator would do
+        first — replaying an unchanged poison message just poisons it again.
+      </p>
+
+      <div class="actions">
+        <button type="button" id="replay-btn">Replay dead letters</button>
+      </div>
+
+      <div id="replay-result" class="result" hidden></div>
+
+      <h3>Telemetry</h3>
+      <p class="hint tight">
+        One correlation ID spans the gateway, the queue hop, and every handler.
+        Search an order ID in the workspace with <code>demo/queries.kql</code>.
+      </p>
+      <a id="portal-link" class="link" href="#" target="_blank" rel="noopener">
+        Open Application Insights
+      </a>
+    </section>
+
+    <section class="panel wide" aria-labelledby="orders-heading">
+      <div class="panel-head">
+        <h2 id="orders-heading">Submitted this session</h2>
+        <span class="polling" id="polling-state">idle</span>
+      </div>
+
+      <table id="orders-table">
+        <thead>
+          <tr>
+            <th scope="col">Order</th>
+            <th scope="col">Customer</th>
+            <th scope="col" class="num">Total</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="num">Attempts</th>
+            <th scope="col">Detail</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <tr class="empty"><td colspan="6">Nothing submitted yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p id="config-note"></p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -654,12 +654,36 @@ into a generated `config.js`, then deploying via the SWA CLI with the token pass
 environment variable, never written to disk (§17 risk 8).
 **Done when:** A placeholder page is live at the SWA URL with config injected.
 
+**✅ Verified 2026-08-21.** Free-tier site live at
+`https://proud-sky-0f2a0ac1e.7.azurestaticapps.net`. `deploy-web.ps1` generates
+`web/config.js` from Terraform outputs and deploys via `npx @azure/static-web-apps-cli`, so
+nothing needs installing globally. The deployment token goes through an environment variable
+and is never written to disk or passed as an argument.
+
+The SWA origin is now wired into the APIM CORS policy from the Terraform output, replacing the
+`https://localhost` placeholder W18 left there.
+
 ### W31 · Web UI · `L`
 **Depends on:** W30, W22
 **Do:** Single page, no framework. Order submission form including the `simulateFailure`
 toggle and an amount that can cross the $500 filter threshold; a status table polling
 `GET /orders/{id}`; a DLQ replay button; a link into App Insights.
 **Done when:** Every demo scenario except the rate limit is drivable from the browser.
+
+**✅ Built 2026-08-21.** Single page, no framework. Submit form with a live total, two presets
+that straddle the notification threshold, a simulate-failure toggle, a status table that polls
+only non-terminal orders (so the loop stops on its own), and a replay button that reports
+drained-versus-resubmitted.
+
+CORS preflight verified from the real origin:  comes back as the
+exact SWA URL, and the allowed method and headers match the policy.
+
+The page reads  bodies, so a gateway 401 or a backend 400 shows its actual
+reason rather than a bare status code — worth having when the difference between those two is
+the thing being taught.
+
+**Visual confirmation in a browser is still outstanding** and belongs to W36; everything above
+was verified over HTTP.
 
 ### W32 · demo.http · `S`
 **Depends on:** W21, W26

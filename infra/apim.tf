@@ -164,9 +164,7 @@ resource "azurerm_api_management_api_policy" "orders" {
 
   xml_content = templatefile("${path.module}/policies/orders-api.xml", {
     backend_url = "https://${azurerm_function_app_flex_consumption.main.default_hostname}/api"
-    // Placeholder until W30 creates the Static Web App. CORS needs a literal
-    // origin, and an empty one would make the policy invalid.
-    swa_origin = "https://localhost"
+    swa_origin  = "https://${azurerm_static_web_app.main.default_host_name}"
   })
 
   depends_on = [azurerm_api_management_named_value.function_host_key]
