@@ -11,6 +11,11 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    # Absorbs RBAC propagation delay; see rbac.tf.
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.11"
+    }
   }
 
   # Local state by design; see SPEC.md 13.3.

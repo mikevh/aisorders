@@ -180,6 +180,22 @@ the key.
 **Note:** This is the item most likely to fail for permission reasons. If W01 was skipped, it
 fails here.
 
+**✅ Verified 2026-08-20.** All five assignments present for principal
+`764433f9-f3dd-444a-8c79-44d5cc4c6c12`: Service Bus Data Sender and Data Receiver on
+`sb-aisdemo-mrx0e`; Storage Blob Data Owner, Queue Data Contributor, and Table Data
+Contributor on `staisdemomrx0e`. No permission trouble — W01's Owner finding held.
+
+Assignments took ~40s each to create, and `time_sleep.rbac_propagation` adds a further 60s
+before apply completes. That minute is deliberate: without it the first invocation after an
+apply can 403 for no visible reason, which is a miserable thing to debug mid-demo. Sixty
+seconds is empirical, not a guarantee.
+
+Blob access is **Data Owner** rather than Contributor because the Functions host manages blob
+leases for singleton locks.
+
+With these in place the identity can reach storage unaided, which is the precondition for
+W14 deleting the platform-injected `AzureWebJobsStorage` key (SPEC.md 9.2.1).
+
 ### W10 · .NET solution scaffold · `M`
 **Depends on:** W03
 **Do:** `AisDemo.Functions` isolated-worker project, `Program.cs` with DI and App Insights
