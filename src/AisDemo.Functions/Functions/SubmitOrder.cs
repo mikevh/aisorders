@@ -84,6 +84,8 @@ public sealed class SubmitOrder
             ItemsJson = JsonDefaults.Serialize(submission.Items)
         };
 
+        Telemetry.TagOrder(orderId, correlationId, nameof(OrderStatus.Accepted));
+
         // Persist before enqueueing. The reverse order allows a processor to
         // pick the message up before any row exists to update.
         //
@@ -102,6 +104,10 @@ public sealed class SubmitOrder
         }
         catch (Exception ex)
         {
+            // Without this the span stays green: the caller sees a 500 while
+            // App Insights records a healthy invocation and no exception.
+            Telemetry.RecordHandled(ex);
+
             _logger.LogError(ex,
                 "Failed to accept order {OrderId} for {CustomerId}: {ExceptionType}: {ExceptionMessage}. CorrelationId={CorrelationId}",
                 orderId, submission.CustomerId, ex.GetType().FullName, ex.Message, correlationId);

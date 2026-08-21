@@ -595,6 +595,18 @@ must say this out loud rather than letting the demo imply replay fixes anything 
 **Do:** Add `orderId` and `correlationId` as custom dimensions across every function.
 **Done when:** A Logs query filtering on one `orderId` returns every stage of that order.
 
+**✅ Verified 2026-08-21.** Filtering `Properties['orderId']` on a single order returns spans
+across `SubmitOrder` and `ProcessOrder`, each carrying `orderStatus`.
+
+Tags go on the **span**, not just log arguments. Structured logging alone attaches identifiers
+to `AppTraces` rows only, leaving `AppRequests` and `AppDependencies` unfilterable by order —
+so the one query a presenter actually types would miss most of the journey.
+
+**Also closes the W15 observability gap.** A caught exception left its span green: the caller
+saw a 500 while App Insights recorded a healthy invocation and no exception at all.
+`Telemetry.RecordHandled` now calls `AddException` and sets the span status to error, restoring
+the row to `AppExceptions` and to the Failures blade.
+
 ---
 
 ## Phase 4 — Local development

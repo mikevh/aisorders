@@ -99,6 +99,8 @@ public sealed class ReplayDeadLetter
                 entity.FailureReason = null;
             }, cancellationToken);
 
+            Telemetry.TagOrder(order.OrderId, order.CorrelationId, nameof(OrderStatus.Replayed));
+
             orderIds.Add(order.OrderId);
             resubmitted++;
 

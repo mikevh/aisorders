@@ -33,10 +33,9 @@ public sealed class NotificationHandler
             return;
         }
 
-        // Tagged on the current activity so the notification is attributable to
-        // one order in the end-to-end transaction view, not just a log line.
-        Activity.Current?.SetTag("orderId", evt.OrderId);
-        Activity.Current?.SetTag("correlationId", evt.CorrelationId);
+        // Tagged on the current span so the notification is attributable to one
+        // order in the end-to-end transaction view, not just a log line.
+        Telemetry.TagOrder(evt.OrderId, evt.CorrelationId);
         Activity.Current?.SetTag("eventType", evt.EventType);
 
         _logger.LogInformation(
@@ -78,8 +77,7 @@ public sealed class AuditHandler
             return;
         }
 
-        Activity.Current?.SetTag("orderId", evt.OrderId);
-        Activity.Current?.SetTag("correlationId", evt.CorrelationId);
+        Telemetry.TagOrder(evt.OrderId, evt.CorrelationId);
         Activity.Current?.SetTag("eventType", evt.EventType);
 
         await _audit.AppendAsync(evt, body, cancellationToken);

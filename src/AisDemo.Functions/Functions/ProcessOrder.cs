@@ -66,6 +66,8 @@ public sealed class ProcessOrder
                 $"Message {message.MessageId} carried no usable order payload");
         }
 
+        Telemetry.TagOrder(order.OrderId, order.CorrelationId, nameof(OrderStatus.Processing));
+
         _logger.LogInformation(
             "Processing order {OrderId}, attempt {Attempt}. CorrelationId={CorrelationId}",
             order.OrderId, attempt, order.CorrelationId);
@@ -103,6 +105,7 @@ public sealed class ProcessOrder
                 await _messaging.PublishEventAsync(
                     BuildEvent(order, OrderEvent.Types.Rejected), cancellationToken);
 
+                Telemetry.TagOrder(order.OrderId, order.CorrelationId, nameof(OrderStatus.Rejected));
                 _logger.LogWarning(
                     "Rejected order {OrderId}: {Reason}. CorrelationId={CorrelationId}",
                     order.OrderId, rejection, order.CorrelationId);
@@ -113,6 +116,7 @@ public sealed class ProcessOrder
             await _messaging.PublishEventAsync(
                 BuildEvent(order, OrderEvent.Types.Completed), cancellationToken);
 
+            Telemetry.TagOrder(order.OrderId, order.CorrelationId, nameof(OrderStatus.Completed));
             _logger.LogInformation(
                 "Completed order {OrderId}. CorrelationId={CorrelationId}",
                 order.OrderId, order.CorrelationId);
@@ -130,6 +134,8 @@ public sealed class ProcessOrder
                 entity.AttemptCount = attempt;
                 entity.FailureReason = $"{ex.GetType().Name}: {ex.Message}";
             }, CancellationToken.None);
+
+            Telemetry.TagOrder(order.OrderId, order.CorrelationId, nameof(OrderStatus.Retrying));
 
             _logger.LogError(ex,
                 "Order {OrderId} failed on attempt {Attempt} of 5. CorrelationId={CorrelationId}",

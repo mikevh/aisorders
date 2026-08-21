@@ -34,6 +34,8 @@ public sealed class GetOrder
 
         request.HttpContext.Response.Headers[SubmitOrder.CorrelationHeader] = correlationId;
 
+        Telemetry.TagOrder(orderId, correlationId);
+
         var entity = await _orders.GetAsync(orderId, cancellationToken);
         if (entity is null)
         {
@@ -51,6 +53,7 @@ public sealed class GetOrder
             };
         }
 
+        Telemetry.TagOrder(orderId, entity.CorrelationId, entity.Status);
         return new OkObjectResult(OrderStatusResponse.From(entity));
     }
 }
