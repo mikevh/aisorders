@@ -1,3 +1,4 @@
+using Azure.Core;
 using Azure.Data.Tables;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
@@ -22,6 +23,35 @@ namespace AisDemo.Functions.Services;
 /// </remarks>
 public static class AzureClientFactory
 {
+    /// <summary>
+    /// Builds the credential used for all identity-based access.
+    /// </summary>
+    /// <remarks>
+    /// Managed identity is excluded when not running in Azure. A bare
+    /// <c>DefaultAzureCredential</c> tries ManagedIdentityCredential before
+    /// AzureCliCredential, and off-Azure that means probing the instance
+    /// metadata endpoint at 169.254.169.254 — an address that simply is not
+    /// routable outside Azure. Measured cost on a developer machine: roughly
+    /// 25 seconds of retries, and then a failure rather than a fall-through to
+    /// the developer's own az login.
+    ///
+    /// WEBSITE_INSTANCE_ID is injected by the Functions platform, so its
+    /// absence is a reliable "not running in Azure" signal.
+    /// </remarks>
+    private static TokenCredential CreateCredential()
+    {
+        var runningInAzure = !string.IsNullOrEmpty(
+            Environment.GetEnvironmentVariable("WEBSITE_INSTANCE_ID"));
+
+        return new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ExcludeManagedIdentityCredential = !runningInAzure,
+
+            // Never block a Functions host waiting on a browser prompt.
+            ExcludeInteractiveBrowserCredential = true
+        });
+    }
+
     public static ServiceBusClient CreateServiceBusClient(DemoOptions options)
     {
         if (!string.IsNullOrWhiteSpace(options.ServiceBusConnectionString))
@@ -35,7 +65,7 @@ public static class AzureClientFactory
             // Azure: system-assigned managed identity, no secret involved.
             return new ServiceBusClient(
                 options.ServiceBusFullyQualifiedNamespace,
-                new DefaultAzureCredential());
+                CreateCredential());
         }
 
         throw new InvalidOperationException(
@@ -55,7 +85,7 @@ public static class AzureClientFactory
         if (!string.IsNullOrWhiteSpace(options.StorageAccountName))
         {
             var endpoint = new Uri($"https://{options.StorageAccountName}.table.core.windows.net");
-            return new TableServiceClient(endpoint, new DefaultAzureCredential());
+            return new TableServiceClient(endpoint, CreateCredential());
         }
 
         throw new InvalidOperationException(

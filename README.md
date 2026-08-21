@@ -32,7 +32,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W09** — role assignments for the managed identity
 - [x] **W10** — .NET isolated worker scaffold, models, serializer defaults
 - [x] **W11** — client factory, repositories, messaging, typed config
-- [ ] W12–W15 — functions and a deployed walking skeleton
+- [x] **W12** — SubmitOrder
+- [ ] W13–W15 — processor, deploy script, and the walking skeleton gate
 - [ ] W16–W21 — API Management and the gateway path
 - [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator

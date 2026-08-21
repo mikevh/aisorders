@@ -52,4 +52,8 @@ builder.Services.AddSingleton<OrderMessaging>();
 builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<AuditRepository>();
 
+// Creates the demo tables when running against Azurite; skipped in Azure,
+// where Terraform owns them.
+builder.Services.AddHostedService<TableBootstrapper>();
+
 builder.Build().Run();

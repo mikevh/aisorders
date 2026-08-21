@@ -269,6 +269,28 @@ row, enqueue with `orderId` and `correlationId` application properties, return `
 **Done when:** A direct call to the function URL returns `202`, an `Accepted` row appears, and
 a message lands on the queue.
 
+**✅ Verified 2026-08-20** against real Azure resources, host run locally. `POST /api/orders`
+returned **202** with camelCase body, `Location: /orders/{id}`, and an echoed
+`x-correlation-id`; the `Accepted` row appeared with `OrderTotal 749.97` exact; queue depth
+went to 1. An empty `items` array returned **400** `application/problem+json`. Test data
+cleaned up afterwards.
+
+Validation lives in the function rather than an APIM policy — §17 risk 7 left that policy's
+tier support unverified, and scenario 14.4 injects malformed messages past the gateway
+anyway, so the backend must handle bad input regardless.
+
+**⚠ `DefaultAzureCredential` hangs 25 seconds off-Azure, then fails.** Its chain tries
+ManagedIdentityCredential before AzureCliCredential, so on a developer machine it probes the
+instance metadata endpoint at `169.254.169.254` — an address not routable outside Azure —
+retries six times, then throws `AuthenticationFailedException` instead of falling through to
+the developer's own `az login`. First observed as a 500 after a 24.9-second function
+execution.
+
+`AzureClientFactory.CreateCredential()` now excludes managed identity unless
+`WEBSITE_INSTANCE_ID` is set, which the Functions platform injects. Same call afterwards:
+**8.3 s cold, HTTP 202.** This matters beyond convenience — anyone pointing a local host at
+real Azure to debug would otherwise hit an unexplained 25-second hang.
+
 ### W13 · ProcessOrder, minimal · `M`
 **Depends on:** W12
 **Do:** Queue trigger. Deserialize, set `Processing`, then `Completed`. No delay, failure
