@@ -297,6 +297,23 @@ real Azure to debug would otherwise hit an unexplained 25-second hang.
 injection, business rules, or event publishing yet — those arrive in W24.
 **Done when:** A submitted order reaches `Completed` without manual intervention.
 
+**✅ Verified 2026-08-20** against real Azure, host run locally. Submitted an order, watched
+`ProcessOrder` fire unprompted (261 ms), and confirmed the row reached `Completed` with
+`AttemptCount 1`, a `ProcessedAt` timestamp, and `OrderTotal 251.0` exact. Queue drained to 0.
+
+The trigger uses `Connection = "ServiceBusConnection"`, which resolves against
+`ServiceBusConnection__fullyQualifiedNamespace` — the reason W08 named the setting that way.
+
+Worth recording, since it was an open worry: the Functions **host** resolves trigger
+credentials through its own chain, which `AzureClientFactory` cannot patch. It nonetheless
+connected cleanly from a developer machine, falling through to CLI credentials rather than
+stalling on the metadata endpoint the way the in-process `DefaultAzureCredential` did in W12.
+So the two credential paths behave differently off-Azure, and only the in-process one needed
+fixing.
+
+Deserialization failure rethrows deliberately, so Service Bus retries and eventually
+dead-letters — the mechanism scenario 14.4 depends on.
+
 ### W14 · deploy-functions.ps1 · `S`
 **Depends on:** W08, W13
 **Do:** Read Terraform outputs, run `func azure functionapp publish`. Also delete the
