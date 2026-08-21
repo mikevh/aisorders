@@ -44,3 +44,68 @@ resource "azurerm_monitor_diagnostic_setting" "servicebus" {
     category = "AllMetrics"
   }
 }
+
+// --- Fan-out ----------------------------------------------------------------
+
+resource "azurerm_servicebus_topic" "order_events" {
+  name         = local.entities.topic
+  namespace_id = azurerm_servicebus_namespace.main.id
+}
+
+// Filtered subscriber. The threshold is what makes filtering visible on stage:
+// a small order reaches only the audit subscriber, a large one reaches both.
+resource "azurerm_servicebus_subscription" "notifications" {
+  name               = local.entities.subscription_notifications
+  topic_id           = azurerm_servicebus_topic.order_events.id
+  max_delivery_count = 5
+}
+
+// Service Bus creates every subscription with a catch-all rule named $Default.
+// It cannot be replaced in place: creating a rule of that name fails with
+// "already exists - to be managed via Terraform this resource needs to be
+// imported". Importing would fix this machine and break a clean rebuild, since
+// a fresh apply hits the identical conflict.
+//
+// Leaving it alone is not an option either. Rules on a subscription are OR-ed,
+// so a TrueFilter sitting beside the SQL filter would match every message and
+// the fan-out demo in SPEC.md 14.2 would show both subscribers receiving
+// everything.
+//
+// So the default rule is deleted first, then the real filter is created under
+// its own name. az is already a documented prerequisite.
+resource "terraform_data" "remove_default_notifications_rule" {
+  triggers_replace = [azurerm_servicebus_subscription.notifications.id]
+
+  provisioner "local-exec" {
+    interpreter = ["pwsh", "-NoProfile", "-Command"]
+    command     = <<-CMD
+      az servicebus topic subscription rule delete `
+        --resource-group '${azurerm_resource_group.main.name}' `
+        --namespace-name '${azurerm_servicebus_namespace.main.name}' `
+        --topic-name '${azurerm_servicebus_topic.order_events.name}' `
+        --subscription-name '${azurerm_servicebus_subscription.notifications.name}' `
+        --name '$Default' --output none
+      if ($LASTEXITCODE -ne 0) { Write-Host 'default rule already absent' }
+      exit 0
+    CMD
+  }
+}
+
+resource "azurerm_servicebus_subscription_rule" "notifications_filter" {
+  name            = "high-value-completed"
+  subscription_id = azurerm_servicebus_subscription.notifications.id
+  filter_type     = "SqlFilter"
+
+  // Reads message application properties, never the body - which is why
+  // OrderMessaging sets eventType and orderTotal as properties too.
+  sql_filter = "eventType = 'OrderCompleted' AND orderTotal > ${var.notification_threshold}"
+
+  depends_on = [terraform_data.remove_default_notifications_rule]
+}
+
+// Catch-all subscriber. Keeps the default rule as created.
+resource "azurerm_servicebus_subscription" "audit" {
+  name               = local.entities.subscription_audit
+  topic_id           = azurerm_servicebus_topic.order_events.id
+  max_delivery_count = 5
+}

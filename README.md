@@ -37,7 +37,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W14** — function deploy script
 - [x] **W15** — ⚑ walking skeleton running end to end on Azure
 - [x] **W16–W21** — ⚑ API Management: gateway path verified end to end
-- [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
+- [x] **W22–W26** — status endpoint, fan-out, dead-letter replay
+- [ ] W27 — telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator
 - [ ] W30–W35 — web UI, request collection, presenter runbook
 - [ ] W36–W38 — validation, documentation, clean-room rebuild

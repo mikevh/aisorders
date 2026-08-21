@@ -1,0 +1,24 @@
+<policies>
+  <inbound>
+    <base />
+    <!--
+      The public path stays /admin/replay as specified, but the backend cannot
+      serve it: the Functions host reserves the "admin" route segment, so a
+      function routed there registers successfully, lists in /admin/functions,
+      and still returns 404 for every request including with the master key.
+
+      Rewriting here keeps the documented API intact and demonstrates gateway
+      request transformation into the bargain.
+    -->
+    <rewrite-uri template="/dlq/replay" copy-unmatched-params="true" />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>

@@ -515,11 +515,26 @@ teardown anyway.
 **Do:** HTTP `GET /api/orders/{orderId}`, point-read `Orders`, return the §5.2 shape or `404`.
 **Done when:** Polling through the gateway shows the status transition.
 
+**✅ Verified 2026-08-20.** `GET /orders/{id}` returns the full §5.2 shape through the gateway,
+and 404 problem+json for an unknown id.
+
 ### W23 · Topic, subscriptions, filters · `S`
 **Depends on:** W07
 **Do:** `order-events` topic, `notifications` subscription with the SQL filter, `audit`
 subscription with a catch-all (§6.3).
 **Done when:** Both subscriptions exist and the filter rule reads back correctly.
+
+**✅ Verified 2026-08-20.** `notifications` carries exactly one rule,
+`eventType = 'OrderCompleted' AND orderTotal > 500`; `audit` keeps `$Default` with `1=1`.
+
+**⚠ The default rule has to be deleted, not replaced.** Service Bus creates every subscription
+with a catch-all rule named `$Default`. Creating a Terraform rule of that name fails with
+*"already exists - to be managed via Terraform this resource needs to be imported"*, and
+importing would fix one machine while leaving a clean rebuild broken, since a fresh apply hits
+the identical conflict. Leaving it in place is worse: rules on a subscription are OR-ed, so a
+TrueFilter beside the SQL filter matches everything and the fan-out demo shows both subscribers
+receiving all events. Resolved with a `terraform_data` provisioner that deletes `$Default`
+before the real filter is created under its own name.
 
 ### W24 · ProcessOrder, complete · `M`
 **Depends on:** W13, W23
@@ -529,6 +544,14 @@ attempt count and reason before rethrow, and event publication with `eventType`,
 `orderTotal`, and `customerId` set as **application properties** so filters can see them.
 **Done when:** A happy order completes and publishes; a poisoned order records `Retrying`,
 increments `attemptCount`, and dead-letters after five attempts.
+
+**✅ Verified 2026-08-20.** Happy order reached `Completed` in one attempt. The poisoned order
+stalled at **`Retrying`, `attemptCount 5`**, carrying
+`InvalidOperationException: Simulated processing failure`, and the message landed in the
+dead-letter queue - exactly the stuck row §5.3 predicts, with nothing updating it afterwards.
+
+Business-rule rejection is deliberately terminal and does **not** throw. Throwing would retry a
+decision that can never change and dead-letter a message the system understood perfectly well.
 **Note:** Filters read message properties, not the body. Setting them only in the JSON payload
 is the classic failure here, and it fails silently — the subscription simply receives nothing.
 
@@ -538,12 +561,34 @@ is the classic failure here, and it fails silently — the subscription simply r
 Insights event; audit appends to `AuditLog`.
 **Done when:** A $50 order reaches only the audit handler; a $5,000 order reaches both.
 
+**✅ Verified 2026-08-20.** `AuditLog` holds all three test orders ($50, $749.97, $5,000). The
+notification traces name only the $749.97 and $5,000 orders - the $50 one never reaches that
+handler. The filter is doing real work, and the application properties set by `OrderMessaging`
+are what let it.
+
 ### W26 · ReplayDeadLetter · `M`
 **Depends on:** W24
 **Do:** HTTP `POST /api/admin/replay?max=n`. Receive from the DLQ, resubmit to `orders`,
 complete the DLQ message, mark rows `Replayed`, return the §5.2 count shape.
 **Done when:** A dead-lettered order is drained, resubmitted, and reaches `Completed`, leaving
 the DLQ empty.
+
+**✅ Verified 2026-08-20.** `{"drained":1,"resubmitted":1}`, the order reached `Completed` on
+attempt 1 with `failureReason` cleared, and both the queue and the dead-letter queue returned
+to 0.
+
+**⚠ The Functions host reserves the `admin` route segment.** `Route = "admin/replay"` registers
+without complaint and appears in the host's own `/admin/functions` listing with the correct
+binding - and then returns **404 for every HTTP request**, including with the master key. The
+backend route is now `dlq/replay`; the public path stays `/admin/replay` as specified, with an
+APIM `rewrite-uri` bridging them, which demonstrates gateway request transformation as a side
+benefit.
+
+**Replay remediates by default.** Resubmitting a poison message unchanged simply poisons it
+again - realistic, but it leaves scenario 14.3 with no recovery to show. Replay therefore
+clears the injected failure switch, standing in for the remediation an operator would perform
+before draining a queue. `?remediate=false` preserves the honest behaviour, and the runbook
+must say this out loud rather than letting the demo imply replay fixes anything by itself.
 
 ### W27 · Telemetry enrichment · `S`
 **Depends on:** W25, W26

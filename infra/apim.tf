@@ -244,3 +244,14 @@ resource "azurerm_api_management_diagnostic" "service" {
   http_correlation_protocol = "W3C"
   log_client_ip             = true
 }
+
+// Rewrites the public /admin/replay onto the backend's /dlq/replay. See the
+// policy file for why the backend cannot use the admin segment.
+resource "azurerm_api_management_api_operation_policy" "replay" {
+  api_name            = azurerm_api_management_api.orders.name
+  api_management_name = azurerm_api_management.main.name
+  resource_group_name = azurerm_resource_group.main.name
+  operation_id        = azurerm_api_management_api_operation.replay_dlq.operation_id
+
+  xml_content = file("${path.module}/policies/replay.xml")
+}

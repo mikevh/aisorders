@@ -68,6 +68,16 @@ Write-Host "  resource group : $resourceGroup"
 Write-Host "`nPublishing $functionApp..." -ForegroundColor Cyan
 Push-Location $srcDir
 try {
+    # Clean first. The Functions source generator writes functions.metadata,
+    # and an incremental build can leave a stale copy behind that publish will
+    # happily ship - which silently deploys a subset of the functions. Seen in
+    # practice: four of six went missing with a successful build and a
+    # successful publish, and nothing anywhere reported a problem.
+    foreach ($dir in 'bin', 'obj') {
+        $path = Join-Path $srcDir $dir
+        if (Test-Path $path) { Remove-Item $path -Recurse -Force }
+    }
+
     func azure functionapp publish $functionApp --dotnet-version 10.0
     if ($LASTEXITCODE -ne 0) {
         throw "func publish failed with exit code $LASTEXITCODE."

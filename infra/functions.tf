@@ -56,8 +56,13 @@ resource "azurerm_function_app_flex_consumption" "main" {
 
     "ORDERS_QUEUE"       = local.entities.queue
     "ORDER_EVENTS_TOPIC" = local.entities.topic
-    "TABLE_ORDERS"       = local.entities.table_orders
-    "TABLE_AUDIT"        = local.entities.table_audit
+
+    // Referenced by the subscription triggers as %SUBSCRIPTION_NOTIFICATIONS%
+    // and %SUBSCRIPTION_AUDIT%.
+    "SUBSCRIPTION_NOTIFICATIONS" = local.entities.subscription_notifications
+    "SUBSCRIPTION_AUDIT"         = local.entities.subscription_audit
+    "TABLE_ORDERS"               = local.entities.table_orders
+    "TABLE_AUDIT"                = local.entities.table_audit
 
     // Raise before a demo so queue depth and scale-out are visible (14.6).
     "PROCESSING_DELAY_MS" = tostring(var.processing_delay_ms)
