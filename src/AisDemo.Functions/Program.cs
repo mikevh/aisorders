@@ -1,4 +1,5 @@
 using AisDemo.Functions;
+using AisDemo.Functions.Services;
 using Azure.Core.Serialization;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Azure.Functions.Worker;
@@ -37,5 +38,18 @@ builder.Services.Configure<WorkerOptions>(options =>
 {
     options.Serializer = new JsonObjectSerializer(JsonDefaults.Options);
 });
+
+// Configuration is read once. AzureClientFactory then resolves either
+// connection-string or managed-identity credentials from it — the one place
+// that distinction lives (SPEC.md 12.1).
+var demoOptions = DemoOptions.FromConfiguration(builder.Configuration);
+builder.Services.AddSingleton(demoOptions);
+
+builder.Services.AddSingleton(_ => AzureClientFactory.CreateServiceBusClient(demoOptions));
+builder.Services.AddSingleton(_ => AzureClientFactory.CreateTableServiceClient(demoOptions));
+
+builder.Services.AddSingleton<OrderMessaging>();
+builder.Services.AddSingleton<OrderRepository>();
+builder.Services.AddSingleton<AuditRepository>();
 
 builder.Build().Run();

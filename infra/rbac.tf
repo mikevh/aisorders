@@ -53,6 +53,31 @@ resource "azurerm_role_assignment" "storage_table" {
   principal_id         = local.function_principal_id
 }
 
+// --- Operator ---------------------------------------------------------------
+
+// Whoever runs Terraform also needs Service Bus data-plane access. Subscription
+// Owner does NOT grant it: Azure RBAC separates Actions from DataActions, and
+// Owner's wildcard covers only the former. Verified in W11 — an Owner-issued
+// token gets HTTP 401 sending to the queue.
+//
+// This is required, not a convenience. Demo scenario 14.4 has the presenter
+// inject a malformed message straight onto the queue, bypassing the gateway,
+// and inspecting the dead-letter queue during 14.3 needs receive rights.
+// Neither is possible without these.
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_role_assignment" "operator_sb_sender" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Sender"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "azurerm_role_assignment" "operator_sb_receiver" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Receiver"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 // --- Propagation -----------------------------------------------------------
 
 // Role assignments are eventually consistent. Without a pause the first

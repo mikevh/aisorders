@@ -239,6 +239,28 @@ namespace using developer credentials.
 **Note:** Keep the local-versus-Azure branch inside this one file. It is the mitigation for
 the emulator's SAS-only constraint, and it only works if nothing else duplicates the branch.
 
+**✅ Verified 2026-08-20.** `AzureClientFactory` resolves a connection string locally or
+`DefaultAzureCredential` when deployed, and is the only file that branches on which. Alongside
+it: `DemoOptions` (typed config), `OrderRepository` and `AuditRepository`, and `OrderMessaging`
+for queue send, topic publish, and DLQ receive. Builds clean; all registered in `Program.cs`.
+
+Live send verified by acquiring a `https://servicebus.azure.net` token and posting to the
+queue — HTTP 201, queue depth 1, probe then drained back to 0.
+
+**⚠ Subscription Owner does not grant Service Bus data-plane access — new scope added.**
+Azure RBAC separates `Actions` from `DataActions`; Owner's wildcard covers only the former.
+The first send attempt as Owner returned **HTTP 401**, and succeeded only after assigning the
+Data Sender role explicitly.
+
+This is not merely a testing inconvenience. **Scenario 14.4 has the presenter inject a
+malformed message directly onto the queue**, bypassing the gateway, and 14.3 involves
+inspecting the dead-letter queue — neither is possible without operator data-plane roles. So
+`rbac.tf` now also assigns Data Sender and Data Receiver to
+`data.azurerm_client_config.current.object_id`, whoever runs Terraform.
+
+Note the asymmetry: Storage does grant data access to Owner via the account key path, so
+Storage Explorer works without extra roles. Service Bus has no such fallback once keyless.
+
 ### W12 · SubmitOrder · `M`
 **Depends on:** W11
 **Do:** HTTP `POST /api/orders`. Validate payload, compute `orderTotal`, write the `Accepted`
