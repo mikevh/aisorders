@@ -1,0 +1,57 @@
+# Local development stack. See SPEC.md 12.
+#
+#   docker compose up -d
+#   cd ../src/AisDemo.Functions && func start
+#
+# Two constraints this imposes, both covered in SPEC.md 12.1:
+#
+#   1. Entities cannot be created at runtime, so config.json duplicates the
+#      topology in infra/servicebus.tf. Change one, change the other.
+#   2. The emulator authenticates with a fixed SAS connection string only.
+#      Deployed, the app uses managed identity with no secrets at all.
+#      AzureClientFactory is the single place that difference lives.
+
+name: aisdemo-local
+
+services:
+  # The emulator refuses to start without a SQL backend, so this is a hard
+  # dependency rather than an optional extra.
+  sqledge:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: aisdemo-sqledge
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "LocalDemo!Passw0rd"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    container_name: aisdemo-servicebus
+    depends_on:
+      - sqledge
+    environment:
+      ACCEPT_EULA: "Y"
+      SQL_SERVER: sqledge
+      MSSQL_SA_PASSWORD: "LocalDemo!Passw0rd"
+    ports:
+      - "5672:5672"   # AMQP
+      - "5300:5300"   # health
+    volumes:
+      - ./config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+
+  # Blob, queue, and table. Blob and queue back the Functions host itself;
+  # table holds the demo's Orders and AuditLog.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: aisdemo-azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
+    ports:
+      - "10000:10000"  # blob
+      - "10001:10001"  # queue
+      - "10002:10002"  # table

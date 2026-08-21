@@ -616,6 +616,17 @@ the row to `AppExceptions` and to the Failures blade.
 **Do:** `local/docker-compose.yml` with the Service Bus emulator, its SQL Edge companion, and
 Azurite. `local/config.json` mirroring the §6 topology. `local.settings.json` template.
 **Done when:** `docker compose up` starts cleanly and the emulator reports its entities.
+
+**✅ Verified 2026-08-21.** Three containers (Service Bus emulator, SQL Edge, Azurite) start
+clean and the emulator reports *Emulator Service is Successfully Up* with the same connection
+string the settings template carries.
+
+Cross-referencing comment headers are in place in both `local/config.json` and
+`infra/servicebus.tf`, each naming the other. That is the only drift mitigation in the MVP and
+it is worthless if deferred, so it went in with the file.
+
+`local/local.settings.example.json` is committed — `local.settings.json` is git-ignored, so a
+fresh clone would otherwise have nothing to run.
 **Note:** Add the cross-referencing comment headers in both `config.json` and `servicebus.tf`
 now (§12.1). It is the only drift mitigation in the MVP, and it is worthless if deferred.
 
@@ -623,6 +634,14 @@ now (§12.1). It is the only drift mitigation in the MVP, and it is worthless if
 **Depends on:** W28
 **Do:** Run the full path locally — submit, process, fan out, dead-letter, replay.
 **Done when:** Every scenario except the APIM-specific ones works with no Azure dependency.
+
+**✅ Verified 2026-08-21**, with the Azure settings removed entirely. Both orders reached
+`Completed`, and the fan-out filter behaved exactly as it does in Azure: the $50 order invoked
+**AuditHandler only**, the $5,000 order invoked **both handlers**. Azurite created the tables on
+startup via `TableBootstrapper`, which is skipped when deployed.
+
+That the emulator honours the SQL filter identically is the real result here — it confirms
+`config.json` genuinely mirrors the Terraform topology rather than merely looking like it.
 
 ---
 

@@ -1,0 +1,84 @@
+{
+  "_comment": [
+    "Service Bus emulator topology. MIRRORS infra/servicebus.tf AND local.entities IN infra/main.tf.",
+    "The emulator cannot create entities at runtime, so every queue, topic, subscription, and",
+    "filter has to be declared here as well as in Terraform. Change one, change the other.",
+    "See SPEC.md 12.1 for why this duplication is accepted for the MVP."
+  ],
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [
+          {
+            "Name": "orders",
+            "Properties": {
+              "DeadLetteringOnMessageExpiration": true,
+              "DefaultMessageTimeToLive": "PT1H",
+              "LockDuration": "PT1M",
+              "MaxDeliveryCount": 5,
+              "RequiresDuplicateDetection": false,
+              "RequiresSession": false
+            }
+          }
+        ],
+        "Topics": [
+          {
+            "Name": "order-events",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "RequiresDuplicateDetection": false
+            },
+            "Subscriptions": [
+              {
+                "Name": "notifications",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "DefaultMessageTimeToLive": "PT1H",
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 5,
+                  "RequiresSession": false
+                },
+                "Rules": [
+                  {
+                    "Name": "high-value-completed",
+                    "Properties": {
+                      "FilterType": "Sql",
+                      "SqlFilter": {
+                        "SqlExpression": "eventType = 'OrderCompleted' AND orderTotal > 500"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "Name": "audit",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "DefaultMessageTimeToLive": "PT1H",
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 5,
+                  "RequiresSession": false
+                },
+                "Rules": [
+                  {
+                    "Name": "$Default",
+                    "Properties": {
+                      "FilterType": "Sql",
+                      "SqlFilter": {
+                        "SqlExpression": "1=1"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Logging": {
+      "Type": "File"
+    }
+  }
+}

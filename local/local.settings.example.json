@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "Copy to ../src/AisDemo.Functions/local.settings.json, which is git-ignored.",
+    "",
+    "    cp local/local.settings.example.json src/AisDemo.Functions/local.settings.json",
+    "",
+    "This is the FULLY LOCAL profile: the Service Bus emulator and Azurite, no Azure",
+    "resources and no credentials. ServiceBusConnection is a plain connection string here;",
+    "deployed it is ServiceBusConnection__fullyQualifiedNamespace with no secret at all.",
+    "AzureClientFactory is the single place that decides between the two (SPEC.md 12.1).",
+    "",
+    "To run locally against real Azure instead, replace the two connection values with",
+    "  \"ServiceBusConnection__fullyQualifiedNamespace\": \"<namespace>.servicebus.windows.net\",",
+    "  \"STORAGE_ACCOUNT_NAME\": \"<account>\"",
+    "and drop AzureWebJobsStorage. That path authenticates as your az login, which needs the",
+    "Service Bus data-plane roles Terraform assigns to the operator - subscription Owner alone",
+    "is not sufficient."
+  ],
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "ServiceBusConnection": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+
+    "ORDERS_QUEUE": "orders",
+    "ORDER_EVENTS_TOPIC": "order-events",
+    "SUBSCRIPTION_NOTIFICATIONS": "notifications",
+    "SUBSCRIPTION_AUDIT": "audit",
+    "TABLE_ORDERS": "Orders",
+    "TABLE_AUDIT": "AuditLog",
+
+    "PROCESSING_DELAY_MS": "250"
+  }
+}

@@ -46,6 +46,11 @@ resource "azurerm_monitor_diagnostic_setting" "servicebus" {
 }
 
 // --- Fan-out ----------------------------------------------------------------
+//
+// MIRRORED IN local/config.json. The Service Bus emulator cannot create
+// entities at runtime, so the queue, topic, subscriptions, and the SQL filter
+// below are all declared there as well. Change one, change the other.
+// SPEC.md 12.1 records why this duplication is accepted for the MVP.
 
 resource "azurerm_servicebus_topic" "order_events" {
   name         = local.entities.topic
