@@ -203,6 +203,32 @@ wiring, and the `Models/` types — `OrderSubmission`, `OrderRecord`, `OrderEven
 enum (§5.3).
 **Done when:** The project builds and `func start` runs with zero functions registered.
 
+**✅ Verified 2026-08-20.** Builds clean on `net10.0` with `TreatWarningsAsErrors`, and
+`func start` reaches "No job functions found" — host up, nothing registered yet. The only
+unhealthy probe is `azure.functions.webjobs.storage`, expected until Azurite arrives in W28.
+
+**Telemetry decision: OpenTelemetry mode.** The Core Tools template now defaults to it —
+`host.json` sets `telemetryMode: OpenTelemetry` and the worker uses
+`Azure.Monitor.OpenTelemetry.Exporter` rather than the classic App Insights SDK. Kept, as
+Microsoft's forward path. **Live Metrics is the open question**: it ships in the Azure Monitor
+Distro, not the plain exporter, and §14.6 calls for it. To be verified empirically at W15; if
+absent, that scenario falls back to queue depth spike/drain from the `AzureMetrics` data W07
+already routes to the workspace.
+
+**⚠ The exporter breaks local development if attached unconditionally.**
+`UseAzureMonitorExporter()` throws `A connection string was not found` at startup when
+`APPLICATIONINSIGHTS_CONNECTION_STRING` is unset, and the worker process dies — the host never
+starts, so §12's fully-local path would be impossible. `Program.cs` now attaches the exporter
+only when the setting is present.
+
+**Table Storage has no decimal type.** Supported EDM types are string, bool, DateTime, double,
+Guid, Int32, Int64, and binary. Domain logic works in `decimal` and converts to `double` only
+at the entity boundary, which is documented on `OrderEntity`. Imperceptible for two-decimal
+demo values; real money would use integer minor units.
+
+**Note for W28:** `local.settings.json` is git-ignored, so a fresh clone has none and
+`func start` will fail. W28 must commit a template alongside the compose stack.
+
 ### W11 · Services layer · `M`
 **Depends on:** W10
 **Do:** The client-factory abstraction from §12.1 — resolves a connection string locally or

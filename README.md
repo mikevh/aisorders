@@ -30,7 +30,8 @@ Insights transaction. Failures retry, dead-letter, and can be replayed on demand
 - [x] **W07** — Service Bus namespace and orders queue
 - [x] **W08** — Function App on Flex Consumption with system-assigned identity
 - [x] **W09** — role assignments for the managed identity
-- [ ] W10–W15 — .NET functions through a deployed walking skeleton
+- [x] **W10** — .NET isolated worker scaffold, models, serializer defaults
+- [ ] W11–W15 — services, functions, and a deployed walking skeleton
 - [ ] W16–W21 — API Management and the gateway path
 - [ ] W22–W27 — topic fan-out, dead-letter replay, telemetry enrichment
 - [ ] W28–W29 — local development against the Service Bus emulator
