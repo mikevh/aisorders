@@ -32,8 +32,11 @@ if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
     telemetry.UseAzureMonitorExporter();
 }
 
-// The worker's default serializer is not camelCase. Without this the API would
-// return PascalCase properties and quietly break the contract in SPEC.md 5.2.
+// Applies to payloads the worker itself binds - a Service Bus trigger taking a
+// POCO, for example. It does NOT affect the HTTP responses in this project:
+// those are ObjectResult going through ASP.NET Core integration, which
+// serializes with its own Web defaults. Verified by flipping the naming policy
+// and watching responses stay camelCase either way.
 builder.Services.Configure<WorkerOptions>(options =>
 {
     options.Serializer = new JsonObjectSerializer(JsonDefaults.Options);

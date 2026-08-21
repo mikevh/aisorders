@@ -19,7 +19,7 @@ resource "azurerm_function_app_flex_consumption" "main" {
   // Targeting 10 rather than the platform default of 8, whose Functions
   // support ends 2026-11-10. See SPEC.md 17.1.
   runtime_name    = "dotnet-isolated"
-  runtime_version = "10"
+  runtime_version = "10.0"
 
   // Deployment packages land in the dedicated container from W06, reached
   // with the app's own identity rather than a storage key — this is what

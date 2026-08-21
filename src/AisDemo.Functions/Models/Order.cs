@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AisDemo.Functions.Models;
 
 /// <summary>A single line on a submitted order.</summary>
@@ -7,6 +9,10 @@ public sealed record OrderItem
     public int Quantity { get; init; }
     public decimal UnitPrice { get; init; }
 
+    // Derived, so kept out of serialized payloads. Persisting it alongside its
+    // own inputs invites drift and puts a redundant column in front of anyone
+    // reading the Orders table during a demo.
+    [JsonIgnore]
     public decimal LineTotal => Quantity * UnitPrice;
 }
 
